@@ -19,6 +19,8 @@ import argparse
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from tabulate import tabulate
+from typing import List, Optional, Dict
+from data.cache import clear_cache
 
 # Load environment variables from .env file
 load_dotenv()
@@ -38,20 +40,21 @@ def parse_hedge_fund_response(response):
 
 ##### Run the Hedge Fund #####
 def run_hedge_fund(
-    tickers: list[str],
+    tickers: List[str],
+    initial_cash: float,
     start_date: str,
     end_date: str,
-    portfolio: dict,
     show_reasoning: bool = False,
-    selected_analysts: list = None,
-):
-    # Start progress tracking
-    progress.start()
-
+    selected_agents: Optional[List[str]] = None,
+) -> Dict:
+    """Run the hedge fund simulation."""
     try:
+        # Initialize basic progress tracking
+        progress.start()
+
         # Create a new workflow if analysts are customized
-        if selected_analysts is not None:
-            workflow = create_workflow(selected_analysts)
+        if selected_agents is not None:
+            workflow = create_workflow(selected_agents)
             agent = workflow.compile()
         else:
             agent = app
@@ -65,7 +68,10 @@ def run_hedge_fund(
                 ],
                 "data": {
                     "tickers": tickers,
-                    "portfolio": portfolio,
+                    "portfolio": {
+                        "cash": initial_cash,
+                        "positions": {ticker: 0 for ticker in tickers}
+                    },
                     "start_date": start_date,
                     "end_date": end_date,
                     "analyst_signals": {},
@@ -90,14 +96,14 @@ def start(state: AgentState):
     return state
 
 
-def create_workflow(selected_analysts=None):
+def create_workflow(selected_agents=None):
     """Create the workflow with selected analysts."""
     workflow = StateGraph(AgentState)
     workflow.add_node("start_node", start)
 
     # Default to all analysts if none selected
-    if selected_analysts is None:
-        selected_analysts = ["technical_analyst", "fundamentals_analyst", "sentiment_analyst", "valuation_analyst"]
+    if selected_agents is None:
+        selected_agents = ["technical_analyst", "fundamentals_analyst", "sentiment_analyst", "valuation_analyst"]
 
     # Dictionary of all available analysts
     analyst_nodes = {
@@ -108,7 +114,7 @@ def create_workflow(selected_analysts=None):
     }
 
     # Add selected analyst nodes
-    for analyst_key in selected_analysts:
+    for analyst_key in selected_agents:
         node_name, node_func = analyst_nodes[analyst_key]
         workflow.add_node(node_name, node_func)
         workflow.add_edge("start_node", node_name)
@@ -118,7 +124,7 @@ def create_workflow(selected_analysts=None):
     workflow.add_node("portfolio_management_agent", portfolio_management_agent)
 
     # Connect selected analysts to risk management
-    for analyst_key in selected_analysts:
+    for analyst_key in selected_agents:
         node_name = analyst_nodes[analyst_key][0]
         workflow.add_edge(node_name, "risk_management_agent")
 
@@ -129,7 +135,7 @@ def create_workflow(selected_analysts=None):
     return workflow
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Run the hedge fund trading system")
     parser.add_argument(
         "--initial-cash",
@@ -145,13 +151,17 @@ if __name__ == "__main__":
     )
     parser.add_argument("--end-date", type=str, help="End date (YYYY-MM-DD). Defaults to today")
     parser.add_argument("--show-reasoning", action="store_true", help="Show reasoning from each agent")
+    parser.add_argument("--clear-cache", action="store_true", help="Clear cached data before running")
 
     args = parser.parse_args()
+
+    if args.clear_cache:
+        clear_cache()
 
     # Parse tickers from comma-separated string
     tickers = [ticker.strip() for ticker in args.tickers.split(",")]
 
-    selected_analysts = None
+    selected_agents = None
     choices = questionary.checkbox(
         "Select your AI analysts.",
         choices=[questionary.Choice(display, value=value) for display, value in ANALYST_ORDER],
@@ -169,13 +179,13 @@ if __name__ == "__main__":
 
     if not choices:
         print("You must select at least one analyst. Using all analysts by default.")
-        selected_analysts = None
+        selected_agents = None
     else:
-        selected_analysts = choices
+        selected_agents = choices
         print(f"\nSelected analysts: {', '.join(Fore.GREEN + choice.title().replace('_', ' ') + Style.RESET_ALL for choice in choices)}\n")
 
     # Create the workflow with selected analysts
-    workflow = create_workflow(selected_analysts)
+    workflow = create_workflow(selected_agents)
     app = workflow.compile()
 
     # Validate dates if provided
@@ -200,19 +210,17 @@ if __name__ == "__main__":
     else:
         start_date = args.start_date
 
-    # Initialize portfolio with cash amount and stock positions
-    portfolio = {
-        "cash": args.initial_cash,  # Initial cash amount
-        "positions": {ticker: 0 for ticker in tickers}  # Initial stock positions
-    }
-
     # Run the hedge fund
     result = run_hedge_fund(
         tickers=tickers,
+        initial_cash=args.initial_cash,
         start_date=start_date,
         end_date=end_date,
-        portfolio=portfolio,
         show_reasoning=args.show_reasoning,
-        selected_analysts=selected_analysts,
+        selected_agents=selected_agents,
     )
     print_trading_output(result)
+
+
+if __name__ == "__main__":
+    main()

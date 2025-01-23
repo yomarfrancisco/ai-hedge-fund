@@ -15,11 +15,14 @@ from data.models import (
     InsiderTrade,
     InsiderTradeResponse,
 )
+from .cache_decorators import cache_api_call
+from datetime import timedelta
 
 # Global cache instance
 _cache = get_cache()
 
 
+@cache_api_call("prices", duration=timedelta(hours=24))
 def get_prices(ticker: str, start_date: str, end_date: str) -> list[Price]:
     """Fetch price data from cache or API."""
     # Check cache first
@@ -51,6 +54,7 @@ def get_prices(ticker: str, start_date: str, end_date: str) -> list[Price]:
     return prices
 
 
+@cache_api_call("financial_metrics", duration=timedelta(hours=24))
 def get_financial_metrics(
     ticker: str,
     end_date: str,
@@ -89,6 +93,7 @@ def get_financial_metrics(
     return financial_metrics
 
 
+@cache_api_call("line_items", duration=timedelta(hours=24))
 def search_line_items(
     ticker: str,
     line_items: list[str],
@@ -133,6 +138,7 @@ def search_line_items(
     return search_results[:limit]
 
 
+@cache_api_call("insider_trades", duration=timedelta(hours=24))
 def get_insider_trades(
     ticker: str,
     end_date: str,
@@ -196,6 +202,7 @@ def get_insider_trades(
     return all_trades
 
 
+@cache_api_call("company_news", duration=timedelta(hours=24))
 def get_company_news(
     ticker: str,
     end_date: str,
@@ -259,7 +266,7 @@ def get_company_news(
     return all_news
 
 
-
+@cache_api_call("market_cap", duration=timedelta(hours=24))
 def get_market_cap(
     ticker: str,
     end_date: str,

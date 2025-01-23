@@ -29,7 +29,7 @@ def portfolio_management_agent(state: AgentState):
     analyst_signals = state["data"]["analyst_signals"]
     tickers = state["data"]["tickers"]
 
-    progress.update_status("portfolio_management_agent", None, "Analyzing signals")
+    progress.update_status("portfolio_management_agent", "all", "Analyzing signals")
 
     # Get position limits, current prices, and signals for every ticker
     position_limits = {}
@@ -57,7 +57,7 @@ def portfolio_management_agent(state: AgentState):
                 ticker_signals[agent] = {"signal": signals[ticker]["signal"], "confidence": signals[ticker]["confidence"]}
         signals_by_ticker[ticker] = ticker_signals
 
-    progress.update_status("portfolio_management_agent", None, "Preparing trading strategy")
+    progress.update_status("portfolio_management_agent", "all", "Preparing trading strategy")
     # Create the prompt template
     template = ChatPromptTemplate.from_messages(
         [
@@ -132,7 +132,7 @@ def portfolio_management_agent(state: AgentState):
         }
     )
 
-    progress.update_status("portfolio_management_agent", None, "Making trading decisions")
+    progress.update_status("portfolio_management_agent", "all", "Making trading decisions")
 
     result = make_decision(prompt, tickers)
 
@@ -146,7 +146,7 @@ def portfolio_management_agent(state: AgentState):
     if state["metadata"]["show_reasoning"]:
         show_agent_reasoning({ticker: decision.model_dump() for ticker, decision in result.decisions.items()}, "Portfolio Management Agent")
 
-    progress.update_status("portfolio_management_agent", None, "Done")
+    progress.update_status("portfolio_management_agent", "all", "Done")
 
     return {
         "messages": state["messages"] + [message],

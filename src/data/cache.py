@@ -1,3 +1,61 @@
+import json
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+import pickle
+from typing import Any, Optional
+
+CACHE_DIR = Path("cache")
+CACHE_DURATION = timedelta(hours=24)  # Cache data for 24 hours by default
+
+def get_cache_key(prefix: str, **kwargs) -> str:
+    """Generate a cache key from the function arguments"""
+    # Sort kwargs to ensure consistent keys
+    sorted_items = sorted(kwargs.items())
+    # Join all arguments into a single string
+    args_str = "_".join(f"{k}={v}" for k, v in sorted_items)
+    return f"{prefix}_{args_str}"
+
+def get_cache_path(key: str) -> Path:
+    """Get the full path for a cache file"""
+    # Create cache directory if it doesn't exist
+    CACHE_DIR.mkdir(exist_ok=True)
+    return CACHE_DIR / f"{key}.pickle"
+
+def save_to_cache(key: str, data: Any) -> None:
+    """Save data to cache with timestamp"""
+    cache_data = {
+        "timestamp": datetime.now(),
+        "data": data
+    }
+    with open(get_cache_path(key), "wb") as f:
+        pickle.dump(cache_data, f)
+
+def load_from_cache(key: str, max_age: Optional[timedelta] = None) -> Optional[Any]:
+    """Load data from cache if it exists and is not expired"""
+    cache_path = get_cache_path(key)
+    if not cache_path.exists():
+        return None
+
+    try:
+        with open(cache_path, "rb") as f:
+            cache_data = pickle.load(f)
+        
+        # Check if cache is expired
+        age = datetime.now() - cache_data["timestamp"]
+        if max_age and age > max_age:
+            return None
+            
+        return cache_data["data"]
+    except (EOFError, pickle.UnpicklingError, KeyError):
+        return None
+
+def clear_cache() -> None:
+    """Clear all cached data"""
+    if CACHE_DIR.exists():
+        for cache_file in CACHE_DIR.glob("*.pickle"):
+            cache_file.unlink()
+
 class Cache:
     """In-memory cache for API responses."""
 

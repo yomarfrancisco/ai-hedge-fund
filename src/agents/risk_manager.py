@@ -64,6 +64,9 @@ def risk_management_agent(state: AgentState):
             },
         }
 
+        progress.update_status("risk_management_agent", ticker, "Analyzing portfolio exposure")
+        # ... existing portfolio analysis code ...
+
         progress.update_status("risk_management_agent", ticker, "Done")
 
     message = HumanMessage(

@@ -8,9 +8,8 @@ from tools.api import get_financial_metrics, get_market_cap, search_line_items
 
 ##### Valuation Agent #####
 def valuation_agent(state: AgentState):
-    """Performs detailed valuation analysis using multiple methodologies for multiple tickers."""
+    """Performs detailed valuation analysis for multiple tickers."""
     data = state["data"]
-    end_date = data["end_date"]
     tickers = data["tickers"]
 
     # Initialize valuation analysis for each ticker
@@ -22,7 +21,7 @@ def valuation_agent(state: AgentState):
         # Fetch the financial metrics
         financial_metrics = get_financial_metrics(
             ticker=ticker,
-            end_date=end_date,
+            end_date=data["end_date"],
             period="ttm",
         )
 
@@ -44,7 +43,7 @@ def valuation_agent(state: AgentState):
                 "capital_expenditure",
                 "working_capital",
             ],
-            end_date=end_date,
+            end_date=data["end_date"],
             period="ttm",
             limit=2,
         )
@@ -59,25 +58,37 @@ def valuation_agent(state: AgentState):
         previous_financial_line_item = financial_line_items[1]
 
         progress.update_status("valuation_agent", ticker, "Calculating owner earnings")
-        # Calculate working capital change
-        working_capital_change = current_financial_line_item.working_capital - previous_financial_line_item.working_capital
+        
+        # Handle missing working capital data
+        try:
+            current_wc = current_financial_line_item.working_capital or 0
+            previous_wc = previous_financial_line_item.working_capital or 0
+            working_capital_change = current_wc - previous_wc
+        except (AttributeError, TypeError):
+            working_capital_change = 0
+
+        # Handle potentially missing data for owner earnings calculation
+        net_income = current_financial_line_item.net_income or 0
+        depreciation = current_financial_line_item.depreciation_and_amortization or 0
+        capex = current_financial_line_item.capital_expenditure or 0
 
         # Owner Earnings Valuation (Buffett Method)
         owner_earnings_value = calculate_owner_earnings_value(
-            net_income=current_financial_line_item.net_income,
-            depreciation=current_financial_line_item.depreciation_and_amortization,
-            capex=current_financial_line_item.capital_expenditure,
+            net_income=net_income,
+            depreciation=depreciation,
+            capex=capex,
             working_capital_change=working_capital_change,
-            growth_rate=metrics.earnings_growth,
+            growth_rate=metrics.earnings_growth or 0.03,  # Default to 3% if missing
             required_return=0.15,
             margin_of_safety=0.25,
         )
 
         progress.update_status("valuation_agent", ticker, "Calculating DCF value")
-        # DCF Valuation
+        # DCF Valuation with safety check
+        free_cash_flow = current_financial_line_item.free_cash_flow or 0
         dcf_value = calculate_intrinsic_value(
-            free_cash_flow=current_financial_line_item.free_cash_flow,
-            growth_rate=metrics.earnings_growth,
+            free_cash_flow=free_cash_flow,
+            growth_rate=metrics.earnings_growth or 0.03,  # Default to 3% if missing
             discount_rate=0.10,
             terminal_growth_rate=0.03,
             num_years=5,
@@ -85,11 +96,16 @@ def valuation_agent(state: AgentState):
 
         progress.update_status("valuation_agent", ticker, "Comparing to market value")
         # Get the market cap
-        market_cap = get_market_cap(ticker=ticker, end_date=end_date)
+        market_cap = get_market_cap(ticker=ticker, end_date=data["end_date"]) or 0
+
+        # Only proceed with valuation if we have market cap
+        if market_cap == 0:
+            progress.update_status("valuation_agent", ticker, "Failed: No market cap data")
+            continue
 
         # Calculate combined valuation gap (average of both methods)
-        dcf_gap = (dcf_value - market_cap) / market_cap
-        owner_earnings_gap = (owner_earnings_value - market_cap) / market_cap
+        dcf_gap = (dcf_value - market_cap) / market_cap if market_cap > 0 else 0
+        owner_earnings_gap = (owner_earnings_value - market_cap) / market_cap if market_cap > 0 else 0
         valuation_gap = (dcf_gap + owner_earnings_gap) / 2
 
         if valuation_gap > 0.15:  # More than 15% undervalued

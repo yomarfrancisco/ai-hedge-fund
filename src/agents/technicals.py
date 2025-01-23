@@ -23,43 +23,41 @@ def technical_analyst_agent(state: AgentState):
     5. Statistical Arbitrage Signals
     """
     data = state["data"]
-    start_date = data["start_date"]
-    end_date = data["end_date"]
     tickers = data["tickers"]
 
     # Initialize analysis for each ticker
     technical_analysis = {}
 
     for ticker in tickers:
-        progress.update_status("technical_analyst_agent", ticker, "Analyzing price data")
+        progress.update_status("technical_analyst", ticker, "Analyzing technical indicators")
 
         # Get the historical price data
         prices = get_prices(
             ticker=ticker,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=data["start_date"],
+            end_date=data["end_date"],
         )
 
         if not prices:
-            progress.update_status("technical_analyst_agent", ticker, "Failed: No price data found")
+            progress.update_status("technical_analyst", ticker, "Failed: No price data found")
             continue
 
         # Convert prices to a DataFrame
         prices_df = prices_to_df(prices)
 
-        progress.update_status("technical_analyst_agent", ticker, "Calculating trend signals")
+        progress.update_status("technical_analyst", ticker, "Calculating trend signals")
         trend_signals = calculate_trend_signals(prices_df)
 
-        progress.update_status("technical_analyst_agent", ticker, "Calculating mean reversion")
+        progress.update_status("technical_analyst", ticker, "Calculating mean reversion")
         mean_reversion_signals = calculate_mean_reversion_signals(prices_df)
 
-        progress.update_status("technical_analyst_agent", ticker, "Calculating momentum")
+        progress.update_status("technical_analyst", ticker, "Calculating momentum")
         momentum_signals = calculate_momentum_signals(prices_df)
 
-        progress.update_status("technical_analyst_agent", ticker, "Analyzing volatility")
+        progress.update_status("technical_analyst", ticker, "Analyzing volatility")
         volatility_signals = calculate_volatility_signals(prices_df)
 
-        progress.update_status("technical_analyst_agent", ticker, "Statistical analysis")
+        progress.update_status("technical_analyst", ticker, "Statistical analysis")
         stat_arb_signals = calculate_stat_arb_signals(prices_df)
 
         # Combine all signals using a weighted ensemble approach
@@ -71,7 +69,7 @@ def technical_analyst_agent(state: AgentState):
             "stat_arb": 0.15,
         }
 
-        progress.update_status("technical_analyst_agent", ticker, "Combining signals")
+        progress.update_status("technical_analyst", ticker, "Combining signals")
         combined_signal = weighted_signal_combination(
             {
                 "trend": trend_signals,
@@ -115,7 +113,7 @@ def technical_analyst_agent(state: AgentState):
                 },
             },
         }
-        progress.update_status("technical_analyst_agent", ticker, "Done")
+        progress.update_status("technical_analyst", ticker, "Done")
 
     # Create the technical analyst message
     message = HumanMessage(
